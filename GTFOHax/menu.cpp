@@ -30,10 +30,10 @@ const char* corners[] = {
 
 ImVec2 RenderESPText(ImVec2 drawPos, ImU32 color, ImU32 outlineColor, std::string text, bool centered = true, bool swapHeight = false)
 {
+    ImGui::PushFont(G::espFont);
     ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
     float horizOffset = centered ? textSize.x / 2 : 0.0f;
     float vertOffset = swapHeight ? textSize.y : 0.0f;
-    ImGui::PushFont(G::espFont);
     ImGui::GetBackgroundDrawList()->AddText(ImVec2(drawPos.x - horizOffset + 1, drawPos.y - vertOffset + 1), outlineColor, text.c_str());
     ImGui::GetBackgroundDrawList()->AddText(ImVec2(drawPos.x - horizOffset - 1, drawPos.y - vertOffset - 1), outlineColor, text.c_str());
     ImGui::GetBackgroundDrawList()->AddText(ImVec2(drawPos.x - horizOffset + 1, drawPos.y - vertOffset - 1), outlineColor, text.c_str());

@@ -8,6 +8,7 @@
 #include <string>
 #include <codecvt>
 #include <chrono>
+#include <format>
 #include "helpers.h"
 
 // Log file location
@@ -26,12 +27,7 @@ void il2cppi_log_write(std::string text) {
         MessageBoxW(0, L"Could not open log file", 0, 0);
 
     auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    char dateBuffer[100];
-    tm timeInfo;
-    localtime_s(&timeInfo, &time_t_now);
-    std::strftime(dateBuffer, sizeof(dateBuffer), "%F %T %Z\t", &timeInfo);
-    std::string dateString(dateBuffer);
+    std::string dateString = std::format("[{:%Y-%m-%d %H:%M:%S}] ", now);
     DWORD written;
     WriteFile(hfile, dateString.c_str(), (DWORD)dateString.length(), &written, NULL);
     WriteFile(hfile, text.c_str(), (DWORD) text.length(), &written, NULL);

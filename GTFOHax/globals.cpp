@@ -29,6 +29,7 @@ namespace G {
 
     bool initialized = false;
     bool showMenu = true;
+    bool gameQuit = false;
     KeyBind menuKey(KeyBind::INSERT);
     KeyBind unloadKey(KeyBind::DEL);
 

@@ -35,9 +35,9 @@ void Run()
     while (G::running)
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-    kiero::shutdown();
     Hooks::RemoveHooks();
 
     CloseHandle(G::runThread);
-    FreeLibraryAndExitThread(G::hModule, 0);
+    if (!G::gameQuit)
+        FreeLibraryAndExitThread(G::hModule, 0);
 }

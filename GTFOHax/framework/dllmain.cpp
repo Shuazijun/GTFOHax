@@ -6,6 +6,7 @@
 #include <windows.h>
 #include "il2cpp-init.h"
 #include "user/main.h"
+#include "hooks.h"
 
 // DLL entry point
 BOOL APIENTRY DllMain( HMODULE hModule,
@@ -23,7 +24,12 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         break;
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
+        break;
     case DLL_PROCESS_DETACH:
+        if (lpReserved != NULL)
+        {
+            Hooks::RemoveHooks();
+        }
         break;
     }
     return TRUE;

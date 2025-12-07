@@ -48,6 +48,7 @@ namespace G {
 
     extern bool initialized;
     extern bool showMenu;
+    extern bool gameQuit;
     extern KeyBind menuKey;
     extern KeyBind unloadKey;
 

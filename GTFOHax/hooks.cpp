@@ -1,3 +1,4 @@
+#include <vector>
 #include "hooks.h"
 #include "menu.h"
 #include "hacks/player.h"
@@ -20,6 +21,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 bool hookFailed = false;
 std::map<std::string, LPVOID> hooks;
+std::vector<std::pair<LPVOID, std::string>> hookTargets;
 
 std::string HookErrorToString(LONG code)
 {
@@ -65,6 +67,7 @@ void HookAttach(PVOID ppPointer, PVOID pDetour, PVOID* fpOrig, std::string funct
     if (codeCreate == MH_OK)
     {
         hooks[functionName] = *fpOrig;
+        hookTargets.push_back({ppPointer, functionName});
         codeEnable = MH_EnableHook(ppPointer);
     }
 
@@ -153,6 +156,8 @@ void Hooks::InitHooks()
     HOOKATTACH(LG_ComputerTerminal_Setup);
 
     HOOKATTACH(GameStateManager_ChangeState);
+    HOOKATTACH(Application_Quit);
+    HOOKATTACH(Application_Quit_1);
 
     HOOKATTACH(Cursor_set_lockState);
     HOOKATTACH(Cursor_set_visible);
@@ -169,49 +174,44 @@ void Hooks::InitHooks()
         il2cppi_log_write("Initialized Hooks");
 }
 
-void Hooks::RemoveHooks()
+void Hooks::RemoveHooks(bool fullCleanup)
 {
+    static bool isRemoved = false;
+    if (isRemoved) return;
+    isRemoved = true;
+
     G::oWndProc = (WNDPROC)SetWindowLongPtr(G::windowHwnd, GWLP_WNDPROC, (LONG_PTR)G::oWndProc);
-    ImGui_ImplDX11_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
+    
+    for (auto const& pair : hookTargets)
+    {
+        LPVOID target = pair.first;
+        std::string functionName = pair.second;
+        MH_STATUS remove_status = MH_RemoveHook(target);
+        if (remove_status != MH_OK) {
+            std::string error = "Hook removal failed for " + functionName + ", error: " + HookErrorToString(remove_status);
+            il2cppi_log_write(error);
+        }
+    }
+    
+    if (fullCleanup)
+    {
+        kiero::shutdown();
 
-    MH_DisableHook(MH_ALL_HOOKS);
+        if (ImGui::GetCurrentContext()) {
+            ImGui_ImplDX11_Shutdown();
+            ImGui_ImplWin32_Shutdown();
+            ImGui::DestroyContext();
+        }
 
-    HOOKDETACH(Dam_PlayerDamageBase_OnIncomingDamage);
-    HOOKDETACH(Dam_PlayerDamageBase_ModifyInfection);
-    HOOKDETACH(Dam_PlayerDamageLocal_Hitreact);
-    HOOKDETACH(FPS_RecoilSystem_ApplyRecoil);
-    HOOKDETACH(Weapon_CastWeaponRay);
-    HOOKDETACH(Weapon_CastWeaponRay_1);
-    HOOKDETACH(PlayerAmmoStorage_UpdateBulletsInPack);
-    HOOKDETACH(BulletWeapon_Fire);
-    HOOKDETACH(Shotgun_Fire);
-    HOOKDETACH(GlueGun_Updatepressure);
-    HOOKDETACH(GlueGun_UpdateRecharging);
-    HOOKDETACH(HackingMinigame_TimingGrid_StartGame);
-    HOOKDETACH(BulletWeaponArchetype_Update);
-    HOOKDETACH(ArtifactPickup_Core_Setup);
-    HOOKDETACH(CommodityPickup_Core_Setup);
-    HOOKDETACH(ConsumablePickup_Core_Setup);
-    HOOKDETACH(CarryItemPickup_Core_Setup);
-    HOOKDETACH(KeyItemPickup_Core_Setup);
-    HOOKDETACH(GenericSmallPickupItem_Core_Setup);
-    HOOKDETACH(ResourcePackPickup_Setup);
-    HOOKDETACH(LG_HSU_Setup);
-    HOOKDETACH(LG_BulkheadDoorController_Core_Setup);
-    HOOKDETACH(LG_ComputerTerminal_Setup);
+        MH_Uninitialize();
+    }
+    else
+    {
+        MH_DisableHook(MH_ALL_HOOKS);
+    }
 
-    HOOKDETACH(GameStateManager_ChangeState);
-
-    HOOKDETACH(Cursor_set_lockState);
-    HOOKDETACH(Cursor_set_visible);
-
-    HOOKDETACH(LocalPlayerAgent_Update);
-
-    HOOKDETACH(Dam_EnemyDamageBase_ProcessReceivedDamage);
-
-    HOOKDETACH(PreLitVolume_Update);
+    hookTargets.clear();
+    hooks.clear();
 
     il2cppi_log_write("Detached Hooks");
 }
@@ -595,6 +595,27 @@ void Hooks::hkGameStateManager_ChangeState(app::eGameStateName__Enum nextState, 
         ESP::worldBulkheadDCs.clear();
         G::worldBulkheadMtx.unlock();
     }
+}
+
+void Hooks::hkApplication_Quit(int32_t exitCode, MethodInfo* method)
+{
+    il2cppi_log_write("Application::Quit called. Shutting down...");
+    G::gameQuit = true;
+    G::running = false;
+    Hooks::RemoveHooks(false);
+
+    // Trampoline is invalid after RemoveHooks, call original directly
+    app::Application_Quit(exitCode, method);
+}
+
+void Hooks::hkApplication_Quit_1(MethodInfo* method)
+{
+    il2cppi_log_write("Application::Quit_1 called. Shutting down...");
+    G::gameQuit = true;
+    G::running = false;
+    Hooks::RemoveHooks(false);
+
+    app::Application_Quit_1(method);
 }
 
 // Debug hook to get list of possible items

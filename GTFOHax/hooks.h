@@ -4,7 +4,7 @@
 namespace Hooks
 {
     void InitHooks();
-    void RemoveHooks();
+    void RemoveHooks(bool fullCleanup = true);
     HRESULT __stdcall hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags);
     bool hkDam_PlayerDamageBase_OnIncomingDamage(app::Dam_PlayerDamageBase* __this, float damage, float originalDamage, app::Agent* source, MethodInfo* method);
     void hkDam_PlayerDamageBase_ModifyInfection(app::Dam_PlayerDamageBase* __this, app::pInfection data, bool sync, bool updatePageMap, MethodInfo* method);
@@ -34,6 +34,9 @@ namespace Hooks
     void hkLG_ComputerTerminal_Setup(app::LG_ComputerTerminal* __this, app::TerminalStartStateData* startStateData, app::TerminalPlacementData* terminalPlacementData, MethodInfo* method);
 
     void hkGameStateManager_ChangeState(app::eGameStateName__Enum nextState, MethodInfo* method);
+    
+    void hkApplication_Quit(int32_t exitCode, MethodInfo* method);
+    void hkApplication_Quit_1(MethodInfo* method);
 
     void hkCursor_set_lockState(app::CursorLockMode__Enum value, MethodInfo* method);
     void hkCursor_set_visible(bool value, MethodInfo* method);

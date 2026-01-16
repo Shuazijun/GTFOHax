@@ -29,7 +29,6 @@ namespace G {
 
     bool initialized = false;
     bool showMenu = true;
-    bool gameQuit = false;
     KeyBind menuKey(KeyBind::INSERT);
     KeyBind unloadKey(KeyBind::DEL);
 
@@ -46,6 +45,7 @@ namespace G {
 
     ImFont* defaultFont;
     ImFont* espFont;
+    bool chineseFontAvailable = false;
 
     std::queue<std::function<void()>> callbacks;
 }

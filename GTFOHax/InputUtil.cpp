@@ -198,7 +198,8 @@ bool KeyBind::setToPressedKey() noexcept
         }
     }
 
-    for (int i = 0; i < IM_ARRAYSIZE(ImGui::GetIO().KeysDown); ++i) {
+    // Iterate through all named keys (ImGuiKey_NamedKey_BEGIN to ImGuiKey_NamedKey_END)
+    for (int i = ImGuiKey_NamedKey_BEGIN; i < ImGuiKey_NamedKey_END; ++i) {
         if (!ImGui::IsKeyPressed(ImGuiKey(i)))
             continue;
 

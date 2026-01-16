@@ -1,4 +1,3 @@
-#include <vector>
 #include "hooks.h"
 #include "menu.h"
 #include "hacks/player.h"
@@ -14,6 +13,7 @@
 #include "hacks/enemy.h"
 #include "utils/math.h"
 #include "hacks/aimbot.h"
+#include "i18n/i18n.h"
 
 #include "MinHook.h"
 
@@ -21,7 +21,6 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 bool hookFailed = false;
 std::map<std::string, LPVOID> hooks;
-std::vector<std::pair<LPVOID, std::string>> hookTargets;
 
 std::string HookErrorToString(LONG code)
 {
@@ -67,7 +66,6 @@ void HookAttach(PVOID ppPointer, PVOID pDetour, PVOID* fpOrig, std::string funct
     if (codeCreate == MH_OK)
     {
         hooks[functionName] = *fpOrig;
-        hookTargets.push_back({ppPointer, functionName});
         codeEnable = MH_EnableHook(ppPointer);
     }
 
@@ -156,8 +154,6 @@ void Hooks::InitHooks()
     HOOKATTACH(LG_ComputerTerminal_Setup);
 
     HOOKATTACH(GameStateManager_ChangeState);
-    HOOKATTACH(Application_Quit);
-    HOOKATTACH(Application_Quit_1);
 
     HOOKATTACH(Cursor_set_lockState);
     HOOKATTACH(Cursor_set_visible);
@@ -167,6 +163,7 @@ void Hooks::InitHooks()
     HOOKATTACH(Dam_EnemyDamageBase_ProcessReceivedDamage);
 
     HOOKATTACH(PreLitVolume_Update);
+    HOOKATTACH(RenderPipe_CameraUpdate);
 
     if (hookFailed)
         il2cppi_log_write("Failed Initializing Hooks");
@@ -176,42 +173,47 @@ void Hooks::InitHooks()
 
 void Hooks::RemoveHooks(bool fullCleanup)
 {
-    static bool isRemoved = false;
-    if (isRemoved) return;
-    isRemoved = true;
-
     G::oWndProc = (WNDPROC)SetWindowLongPtr(G::windowHwnd, GWLP_WNDPROC, (LONG_PTR)G::oWndProc);
-    
-    for (auto const& pair : hookTargets)
-    {
-        LPVOID target = pair.first;
-        std::string functionName = pair.second;
-        MH_STATUS remove_status = MH_RemoveHook(target);
-        if (remove_status != MH_OK) {
-            std::string error = "Hook removal failed for " + functionName + ", error: " + HookErrorToString(remove_status);
-            il2cppi_log_write(error);
-        }
-    }
-    
-    if (fullCleanup)
-    {
-        kiero::shutdown();
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 
-        if (ImGui::GetCurrentContext()) {
-            ImGui_ImplDX11_Shutdown();
-            ImGui_ImplWin32_Shutdown();
-            ImGui::DestroyContext();
-        }
+    MH_DisableHook(MH_ALL_HOOKS);
 
-        MH_Uninitialize();
-    }
-    else
-    {
-        MH_DisableHook(MH_ALL_HOOKS);
-    }
+    HOOKDETACH(Dam_PlayerDamageBase_OnIncomingDamage);
+    HOOKDETACH(Dam_PlayerDamageBase_ModifyInfection);
+    HOOKDETACH(Dam_PlayerDamageLocal_Hitreact);
+    HOOKDETACH(FPS_RecoilSystem_ApplyRecoil);
+    HOOKDETACH(Weapon_CastWeaponRay);
+    HOOKDETACH(Weapon_CastWeaponRay_1);
+    HOOKDETACH(PlayerAmmoStorage_UpdateBulletsInPack);
+    HOOKDETACH(BulletWeapon_Fire);
+    HOOKDETACH(Shotgun_Fire);
+    HOOKDETACH(GlueGun_Updatepressure);
+    HOOKDETACH(GlueGun_UpdateRecharging);
+    HOOKDETACH(HackingMinigame_TimingGrid_StartGame);
+    HOOKDETACH(BulletWeaponArchetype_Update);
+    HOOKDETACH(ArtifactPickup_Core_Setup);
+    HOOKDETACH(CommodityPickup_Core_Setup);
+    HOOKDETACH(ConsumablePickup_Core_Setup);
+    HOOKDETACH(CarryItemPickup_Core_Setup);
+    HOOKDETACH(KeyItemPickup_Core_Setup);
+    HOOKDETACH(GenericSmallPickupItem_Core_Setup);
+    HOOKDETACH(ResourcePackPickup_Setup);
+    HOOKDETACH(LG_HSU_Setup);
+    HOOKDETACH(LG_BulkheadDoorController_Core_Setup);
+    HOOKDETACH(LG_ComputerTerminal_Setup);
 
-    hookTargets.clear();
-    hooks.clear();
+    HOOKDETACH(GameStateManager_ChangeState);
+
+    HOOKDETACH(Cursor_set_lockState);
+    HOOKDETACH(Cursor_set_visible);
+
+    HOOKDETACH(LocalPlayerAgent_Update);
+
+    HOOKDETACH(Dam_EnemyDamageBase_ProcessReceivedDamage);
+
+    HOOKDETACH(PreLitVolume_Update);
 
     il2cppi_log_write("Detached Hooks");
 }
@@ -346,11 +348,249 @@ bool Hooks::hkWeapon_CastWeaponRay_1(app::Transform* alignTransform, app::Weapon
     {
         if (Aimbot::settings.magicBullet)
         {
-            originPos = Aimbot::silentAimBone;
-            originPos.y += 0.5f;
-            (*weaponRayData)->fields.fireDir.x = 0.0f;
-            (*weaponRayData)->fields.fireDir.y = -1.0f;
-            (*weaponRayData)->fields.fireDir.z = 0.0f;
+            // Get the real-time position of the target to fix miss on fast-moving enemies
+            app::Vector3 currentTargetPos = Aimbot::GetCurrentTargetPosition();
+            float offset = Aimbot::settings.magicBulletOffset;
+            
+            // Calculate origin position and fire direction based on selected direction mode
+            switch (Aimbot::settings.magicBulletDirection)
+            {
+                case Aimbot::MagicBulletDirection::FromAbove:
+                default:
+                {
+                    // Default: shoot from above the target, downward
+                    originPos = currentTargetPos;
+                    originPos.y += offset;
+                    (*weaponRayData)->fields.fireDir.x = 0.0f;
+                    (*weaponRayData)->fields.fireDir.y = -1.0f;
+                    (*weaponRayData)->fields.fireDir.z = 0.0f;
+                    break;
+                }
+                case Aimbot::MagicBulletDirection::FromFront:
+                {
+                    // Shoot from enemy's front (based on movement direction, fallback to facing direction)
+                    bool directionSet = false;
+                    {
+                        // Thread-safe access to targetEnemy
+                        std::lock_guard<std::mutex> lock(G::enemyAimMtx);
+                        app::EnemyAgent* localTargetEnemy = Aimbot::targetEnemy;
+                        
+                        // Validate pointer is still in the enemy list
+                        bool isValid = false;
+                        if (localTargetEnemy != nullptr)
+                        {
+                            for (const auto& enemyInfo : Enemy::enemiesAimbot)
+                            {
+                                if (enemyInfo->enemyAgent == localTargetEnemy)
+                                {
+                                    isValid = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (isValid)
+                        {
+                            // Try to get movement direction first
+                            app::Vector3 enemyDir = Enemy::GetEnemyMovementDirection(localTargetEnemy);
+                            bool hasMovementDir = (enemyDir.x != 0.0f || enemyDir.z != 0.0f);
+                            
+                            // Fallback to facing direction if not moving
+                            if (!hasMovementDir)
+                            {
+                                app::Transform* enemyTransform = app::Component_1_get_transform(
+                                    reinterpret_cast<app::Component_1*>(localTargetEnemy), NULL);
+                                if (enemyTransform != nullptr)
+                                {
+                                    enemyDir = app::Transform_get_forward(enemyTransform, NULL);
+                                    float len = sqrtf(enemyDir.x * enemyDir.x + enemyDir.z * enemyDir.z);
+                                    if (len > 0.001f)
+                                    {
+                                        enemyDir.x /= len;
+                                        enemyDir.z /= len;
+                                        hasMovementDir = true;
+                                    }
+                                }
+                            }
+                            
+                            if (hasMovementDir)
+                            {
+                                // Origin is in front of enemy (where enemy is moving/facing)
+                                originPos.x = currentTargetPos.x + enemyDir.x * offset;
+                                originPos.y = currentTargetPos.y;
+                                originPos.z = currentTargetPos.z + enemyDir.z * offset;
+                                // Fire direction is opposite (shooting into the enemy's face)
+                                (*weaponRayData)->fields.fireDir.x = -enemyDir.x;
+                                (*weaponRayData)->fields.fireDir.y = 0.0f;
+                                (*weaponRayData)->fields.fireDir.z = -enemyDir.z;
+                                directionSet = true;
+                            }
+                        }
+                    }
+                    // Fallback to FromAbove if targetEnemy is null or direction couldn't be determined
+                    if (!directionSet)
+                    {
+                        originPos = currentTargetPos;
+                        originPos.y += offset;
+                        (*weaponRayData)->fields.fireDir.x = 0.0f;
+                        (*weaponRayData)->fields.fireDir.y = -1.0f;
+                        (*weaponRayData)->fields.fireDir.z = 0.0f;
+                    }
+                    break;
+                }
+                case Aimbot::MagicBulletDirection::FromBehind:
+                {
+                    // Shoot from enemy's back (opposite to movement direction, fallback to facing direction)
+                    bool directionSet = false;
+                    {
+                        // Thread-safe access to targetEnemy
+                        std::lock_guard<std::mutex> lock(G::enemyAimMtx);
+                        app::EnemyAgent* localTargetEnemy = Aimbot::targetEnemy;
+                        
+                        // Validate pointer is still in the enemy list
+                        bool isValid = false;
+                        if (localTargetEnemy != nullptr)
+                        {
+                            for (const auto& enemyInfo : Enemy::enemiesAimbot)
+                            {
+                                if (enemyInfo->enemyAgent == localTargetEnemy)
+                                {
+                                    isValid = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (isValid)
+                        {
+                            // Try to get movement direction first
+                            app::Vector3 enemyDir = Enemy::GetEnemyMovementDirection(localTargetEnemy);
+                            bool hasMovementDir = (enemyDir.x != 0.0f || enemyDir.z != 0.0f);
+                            
+                            // Fallback to facing direction if not moving
+                            if (!hasMovementDir)
+                            {
+                                app::Transform* enemyTransform = app::Component_1_get_transform(
+                                    reinterpret_cast<app::Component_1*>(localTargetEnemy), NULL);
+                                if (enemyTransform != nullptr)
+                                {
+                                    enemyDir = app::Transform_get_forward(enemyTransform, NULL);
+                                    float len = sqrtf(enemyDir.x * enemyDir.x + enemyDir.z * enemyDir.z);
+                                    if (len > 0.001f)
+                                    {
+                                        enemyDir.x /= len;
+                                        enemyDir.z /= len;
+                                        hasMovementDir = true;
+                                    }
+                                }
+                            }
+                            
+                            if (hasMovementDir)
+                            {
+                                // Origin is behind enemy (opposite to where enemy is moving/facing)
+                                originPos.x = currentTargetPos.x - enemyDir.x * offset;
+                                originPos.y = currentTargetPos.y;
+                                originPos.z = currentTargetPos.z - enemyDir.z * offset;
+                                // Fire direction is same as enemy's direction (shooting into enemy's back)
+                                (*weaponRayData)->fields.fireDir.x = enemyDir.x;
+                                (*weaponRayData)->fields.fireDir.y = 0.0f;
+                                (*weaponRayData)->fields.fireDir.z = enemyDir.z;
+                                directionSet = true;
+                            }
+                        }
+                    }
+                    // Fallback to FromAbove if targetEnemy is null or direction couldn't be determined
+                    if (!directionSet)
+                    {
+                        originPos = currentTargetPos;
+                        originPos.y += offset;
+                        (*weaponRayData)->fields.fireDir.x = 0.0f;
+                        (*weaponRayData)->fields.fireDir.y = -1.0f;
+                        (*weaponRayData)->fields.fireDir.z = 0.0f;
+                    }
+                    break;
+                }
+                case Aimbot::MagicBulletDirection::FromPlayer:
+                {
+                    // Shoot from player's direction toward enemy
+                    bool directionSet = false;
+                    if (G::localPlayer != nullptr)
+                    {
+                        app::Vector3 playerEyePos = G::localPlayer->fields.m_eyePosition;
+                        app::Vector3 dirToEnemy = Math::Vector3Sub(currentTargetPos, playerEyePos);
+                        float len = sqrtf(dirToEnemy.x * dirToEnemy.x + dirToEnemy.y * dirToEnemy.y + dirToEnemy.z * dirToEnemy.z);
+                        if (len > 0.001f)
+                        {
+                            dirToEnemy = app::Vector3_Normalize(dirToEnemy, NULL);
+                            // Origin is offset distance away from target, toward player
+                            originPos.x = currentTargetPos.x - dirToEnemy.x * offset;
+                            originPos.y = currentTargetPos.y - dirToEnemy.y * offset;
+                            originPos.z = currentTargetPos.z - dirToEnemy.z * offset;
+                            // Fire direction is toward the enemy
+                            (*weaponRayData)->fields.fireDir = dirToEnemy;
+                            directionSet = true;
+                        }
+                    }
+                    // Fallback to FromAbove if localPlayer is null or direction couldn't be determined
+                    if (!directionSet)
+                    {
+                        originPos = currentTargetPos;
+                        originPos.y += offset;
+                        (*weaponRayData)->fields.fireDir.x = 0.0f;
+                        (*weaponRayData)->fields.fireDir.y = -1.0f;
+                        (*weaponRayData)->fields.fireDir.z = 0.0f;
+                    }
+                    break;
+                }
+            }
+            
+            // Record bullet ray using actual shooting parameters
+            if (Aimbot::settings.bulletRayEnabled)
+            {
+                // Use actual fireDir to calculate ray endpoint
+                app::Vector3 fireDir = (*weaponRayData)->fields.fireDir;
+                float rayLength = offset * 2.0f;  // Length of visible ray (covers the offset distance)
+                app::Vector3 rayEnd;
+                rayEnd.x = originPos.x + fireDir.x * rayLength;
+                rayEnd.y = originPos.y + fireDir.y * rayLength;
+                rayEnd.z = originPos.z + fireDir.z * rayLength;
+                Aimbot::AddBulletRay(originPos, rayEnd);
+            }
+            
+            // Record hit ghost effect - capture current skeleton positions
+            if (Aimbot::settings.hitGhostEnabled)
+            {
+                std::lock_guard<std::mutex> lock(G::enemyAimMtx);
+                app::EnemyAgent* localTargetEnemy = Aimbot::targetEnemy;
+                
+                if (localTargetEnemy != nullptr)
+                {
+                    for (const auto& enemyInfo : Enemy::enemiesAimbot)
+                    {
+                        if (enemyInfo->enemyAgent == localTargetEnemy && !enemyInfo->skeletonBones.empty())
+                        {
+                            // Get real-time skeleton positions
+                            std::map<app::HumanBodyBones__Enum, Enemy::Bone> currentBones;
+                            for (const auto& boneType : Enemy::WantedBones)
+                            {
+                                auto boneTransform = app::Animator_GetBoneTransform(
+                                    localTargetEnemy->fields.Anim, boneType, NULL);
+                                if (boneTransform != nullptr)
+                                {
+                                    Enemy::Bone bone;
+                                    bone.position = app::Transform_get_position(boneTransform, NULL);
+                                    currentBones[boneType] = bone;
+                                }
+                            }
+                            if (!currentBones.empty())
+                            {
+                                Aimbot::AddHitGhost(currentBones);
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
         }
         else
         {
@@ -597,27 +837,6 @@ void Hooks::hkGameStateManager_ChangeState(app::eGameStateName__Enum nextState, 
     }
 }
 
-void Hooks::hkApplication_Quit(int32_t exitCode, MethodInfo* method)
-{
-    il2cppi_log_write("Application::Quit called. Shutting down...");
-    G::gameQuit = true;
-    G::running = false;
-    Hooks::RemoveHooks(false);
-
-    // Trampoline is invalid after RemoveHooks, call original directly
-    app::Application_Quit(exitCode, method);
-}
-
-void Hooks::hkApplication_Quit_1(MethodInfo* method)
-{
-    il2cppi_log_write("Application::Quit_1 called. Shutting down...");
-    G::gameQuit = true;
-    G::running = false;
-    Hooks::RemoveHooks(false);
-
-    app::Application_Quit_1(method);
-}
-
 // Debug hook to get list of possible items
 void Hooks::hkItemDataBlock_OnPostSetup(app::ItemDataBlock* __this, MethodInfo* method)
 {
@@ -660,6 +879,84 @@ void Hooks::hkLocalPlayerAgent_Update(app::LocalPlayerAgent* __this, MethodInfo*
     G::w2CamMatrix = app::Camera_get_worldToCameraMatrix(G::mainCamera, NULL);
     G::projMatrix = app::Camera_get_projectionMatrix(G::mainCamera, NULL);
     G::viewMatrix = Math::MatrixMult(G::projMatrix, G::w2CamMatrix);
+
+    // Handle custom fullbright light
+    static app::Light* fullBrightLight = nullptr;
+
+    if (Player::fullBrightToggleKey.isToggled())
+    {
+        // Create the light if it doesn't exist
+        if (fullBrightLight == nullptr && G::mainCamera != nullptr)
+        {
+            // Get the camera's GameObject
+            auto cameraGameObject = app::Component_1_get_gameObject(reinterpret_cast<app::Component_1*>(G::mainCamera), NULL);
+            if (cameraGameObject)
+            {
+                // Get UnityEngine.CoreModule assembly
+                auto domain = il2cpp_domain_get();
+                auto assembly = il2cpp_domain_assembly_open(domain, "UnityEngine.CoreModule");
+                if (assembly)
+                {
+                    auto image = il2cpp_assembly_get_image(assembly);
+                    if (image)
+                    {
+                        // Get Light class
+                        auto lightClass = il2cpp_class_from_name(image, "UnityEngine", "Light");
+                        if (lightClass)
+                        {
+                            auto lightType = il2cpp_class_get_type(lightClass);
+                            auto lightTypeObject = il2cpp_type_get_object(lightType);
+                            // Add Light component to camera's GameObject
+                            auto lightComponent = app::GameObject_AddComponent(cameraGameObject, reinterpret_cast<app::Type*>(lightTypeObject), NULL);
+                            fullBrightLight = reinterpret_cast<app::Light*>(lightComponent);
+
+                            if (fullBrightLight)
+                            {
+                                // Configure as spotlight
+                                app::Light_set_type(fullBrightLight, app::LightType__Enum::Spot, NULL);
+
+                                // Disable shadows for performance
+                                app::Light_set_shadows(fullBrightLight, app::LightShadows__Enum::None, NULL);
+
+                                // Set initial properties
+                                app::Light_set_range(fullBrightLight, Player::fullBrightRange, NULL);
+                                app::Light_set_intensity(fullBrightLight, Player::fullBrightIntensity, NULL);
+                                app::Light_set_spotAngle(fullBrightLight, Player::fullBrightAngle, NULL);
+
+                                app::Color lightColor;
+                                lightColor.r = Player::fullBrightColor.x;
+                                lightColor.g = Player::fullBrightColor.y;
+                                lightColor.b = Player::fullBrightColor.z;
+                                lightColor.a = Player::fullBrightColor.w;
+                                app::Light_set_color(fullBrightLight, lightColor, NULL);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update light properties every frame from sliders
+        if (fullBrightLight != nullptr)
+        {
+            app::Light_set_range(fullBrightLight, Player::fullBrightRange, NULL);
+            app::Light_set_intensity(fullBrightLight, Player::fullBrightIntensity, NULL);
+            app::Light_set_spotAngle(fullBrightLight, Player::fullBrightAngle, NULL);
+
+            app::Color lightColor;
+            lightColor.r = Player::fullBrightColor.x;
+            lightColor.g = Player::fullBrightColor.y;
+            lightColor.b = Player::fullBrightColor.z;
+            lightColor.a = Player::fullBrightColor.w;
+            app::Light_set_color(fullBrightLight, lightColor, NULL);
+        }
+    }
+    else if (fullBrightLight != nullptr)
+    {
+        // Destroy the light component when toggle is off
+        app::Object_1_Destroy_1(reinterpret_cast<app::Object_1*>(fullBrightLight), NULL);
+        fullBrightLight = nullptr;
+    }
 
     G::worldItemsMtx.lock();
     for (ESP::WorldPickupItem& i : ESP::worldItems) i.update();
@@ -727,6 +1024,20 @@ bool Hooks::hkDam_EnemyDamageBase_ProcessReceivedDamage(app::Dam_EnemyDamageBase
     return retVal;
 }
 
+void Hooks::hkRenderPipe_CameraUpdate(app::Camera* camera, app::RenderPipe_CameraData* cameraData, MethodInfo* method)
+{
+    static auto fpOFunc = reinterpret_cast<void (*)(app::Camera*, app::RenderPipe_CameraData*, MethodInfo*)>(hooks["RenderPipe_CameraUpdate"]);
+
+    // Call original
+    fpOFunc(camera, cameraData, method);
+
+    // Disable shadows when fullbright is on
+    if (Player::fullBrightToggleKey.isToggled())
+    {
+        app::QualitySettings_set_shadowDistance(0.0f, NULL);
+    }
+}
+
 void Hooks::hkPreLitVolume_Update(app::PreLitVolume* __this, MethodInfo* method)
 {
     static auto fpOFunc = reinterpret_cast<void (*)(app::PreLitVolume*, MethodInfo*)>(hooks["PreLitVolume_Update"]);
@@ -771,14 +1082,75 @@ HRESULT __stdcall Hooks::hkPresent(IDXGISwapChain* pSwapChain, UINT SyncInterval
             pBackBuffer->Release();
 
             ImGuiIO& io = ImGui::GetIO();
-            io.ImeWindowHandle = G::windowHwnd;
-            G::defaultFont = io.Fonts->AddFontDefault();
+            // ImeWindowHandle is obsolete in ImGui 1.87+, use ImGuiViewport::PlatformHandleRaw instead
+            // io.ImeWindowHandle = G::windowHwnd; // OBSOLETE
+            
+            // Load font with Chinese support
             ImFontConfig config;
-            config.FontBuilderFlags |= ImGuiFreeTypeBuilderFlags::ImGuiFreeTypeBuilderFlags_ForceAutoHint;
-            G::espFont = io.Fonts->AddFontFromMemoryCompressedBase85TTF(Fonts::GetRobotoFontDataTTFBase85(), 14, &config);
+            config.FontLoaderFlags |= ImGuiFreeTypeLoaderFlags_ForceAutoHint;
+            
+            // Build custom glyph ranges including all needed Chinese characters
+            static const ImWchar ranges[] = {
+                0x0020, 0x00FF, // Basic Latin + Latin Supplement
+                0x2000, 0x206F, // General Punctuation
+                0x3000, 0x30FF, // CJK Symbols and Punctuations, Hiragana, Katakana
+                0x31F0, 0x31FF, // Katakana Phonetic Extensions
+                0xFF00, 0xFFEF, // Half-width characters
+                0x4e00, 0x9FAF, // CJK Ideograms
+                0, 0 // Terminator (must be a zero pair)
+            };
+            
+            // Try multiple Chinese fonts in order of preference
+            const char* chineseFonts[] = {
+                "C:\\Windows\\Fonts\\msyh.ttc",    // Microsoft YaHei (Win7+)
+                "C:\\Windows\\Fonts\\simhei.ttf",  // SimHei (older systems)
+                "C:\\Windows\\Fonts\\simsun.ttc",  // SimSun (most compatible)
+                "C:\\Windows\\Fonts\\msyhl.ttc",   // YaHei Light
+                "C:\\Windows\\Fonts\\simkai.ttf",  // KaiTi
+            };
+            
+            ImFont* fontWithChinese = nullptr;
+            for (const char* fontPath : chineseFonts) {
+                fontWithChinese = io.Fonts->AddFontFromFileTTF(fontPath, 16.0f, &config, ranges);
+                if (fontWithChinese) break;
+            }
+            
+            // If all system fonts fail, use embedded font (no Chinese support)
+            if (fontWithChinese) {
+                G::defaultFont = fontWithChinese;
+                G::chineseFontAvailable = true;
+            } else {
+                G::defaultFont = io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+                    Fonts::GetRobotoFontDataTTFBase85(), 
+                    16, 
+                    &config
+                );
+                G::chineseFontAvailable = false;
+            }
+            
+            // ESP font - try same fonts
+            ImFont* espFontWithChinese = nullptr;
+            for (const char* fontPath : chineseFonts) {
+                espFontWithChinese = io.Fonts->AddFontFromFileTTF(fontPath, 14.0f, &config, ranges);
+                if (espFontWithChinese) break;
+            }
+            
+            if (espFontWithChinese) {
+                G::espFont = espFontWithChinese;
+            } else {
+                G::espFont = io.Fonts->AddFontFromMemoryCompressedBase85TTF(
+                    Fonts::GetRobotoFontDataTTFBase85(), 
+                    14, 
+                    &config
+                );
+            }
+            
             unsigned char* pixels;
             int width, height;
             io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+            
+            // Initialize language after font loading based on availability
+            I18N::InitializeAfterFontLoad(G::chineseFontAvailable);
 
             ImGui_ImplWin32_Init(G::windowHwnd);
             ImGui_ImplDX11_Init(G::pDevice, G::pContext);

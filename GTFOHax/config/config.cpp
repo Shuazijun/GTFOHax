@@ -177,6 +177,19 @@ namespace Aimbot
             {"HoldKey", value.holdKey},
             {"SilentAim", value.silentAim},
             {"MagicBullet", value.magicBullet},
+            {"MagicBulletDirection", value.magicBulletDirection},
+            {"MagicBulletOffset", value.magicBulletOffset},
+            {"HitGhostEnabled", value.hitGhostEnabled},
+            {"HitGhostDuration", value.hitGhostDuration},
+            {"HitGhostColor", value.hitGhostColor},
+            {"HitGhostThickness", value.hitGhostThickness},
+            {"BulletRayEnabled", value.bulletRayEnabled},
+            {"BulletRayDuration", value.bulletRayDuration},
+            {"BulletRayColor", value.bulletRayColor},
+            {"BulletRayThickness", value.bulletRayThickness},
+            {"TargetHighlight", value.targetHighlight},
+            {"TargetHighlightColor", value.targetHighlightColor},
+            {"TargetHighlightMarker", value.targetHighlightMarker},
             {"VisibleOnly", value.visibleOnly},
             {"AimAtArmor", value.aimAtArmor},
             {"MaxDistance", value.maxDistance},
@@ -195,6 +208,19 @@ namespace Aimbot
         JSON_GET("HoldKey", value.holdKey);
         JSON_GET("SilentAim", value.silentAim);
         JSON_GET("MagicBullet", value.magicBullet);
+        JSON_GET("MagicBulletDirection", value.magicBulletDirection);
+        JSON_GET("MagicBulletOffset", value.magicBulletOffset);
+        JSON_GET("HitGhostEnabled", value.hitGhostEnabled);
+        JSON_GET("HitGhostDuration", value.hitGhostDuration);
+        JSON_GET("HitGhostColor", value.hitGhostColor);
+        JSON_GET("HitGhostThickness", value.hitGhostThickness);
+        JSON_GET("BulletRayEnabled", value.bulletRayEnabled);
+        JSON_GET("BulletRayDuration", value.bulletRayDuration);
+        JSON_GET("BulletRayColor", value.bulletRayColor);
+        JSON_GET("BulletRayThickness", value.bulletRayThickness);
+        JSON_GET("TargetHighlight", value.targetHighlight);
+        JSON_GET("TargetHighlightColor", value.targetHighlightColor);
+        JSON_GET("TargetHighlightMarker", value.targetHighlightMarker);
         JSON_GET("VisibleOnly", value.visibleOnly);
         JSON_GET("AimAtArmor", value.aimAtArmor);
         JSON_GET("MaxDistance", value.maxDistance);
@@ -227,6 +253,11 @@ void Config::Save()
             {"NoSpreadToggleKey", Player::noSpreadToggleKey},
             {"NoShakeToggleKey", Player::noShakeToggleKey},
             {"NoFogToggleKey", Player::noFogToggleKey},
+            {"FullBrightToggleKey", Player::fullBrightToggleKey},
+            {"FullBrightRange", Player::fullBrightRange},
+            {"FullBrightIntensity", Player::fullBrightIntensity},
+            {"FullBrightAngle", Player::fullBrightAngle},
+            {"FullBrightColor", Player::fullBrightColor},
             {"GiveHealthKey", Player::giveHealthKey},
             {"GiveDisinKey", Player::giveDisinKey},
             {"GiveAmmoKey", Player::giveAmmoKey},
@@ -275,6 +306,11 @@ void Config::Load()
         JSON_GET("NoSpreadToggleKey", Player::noSpreadToggleKey);
         JSON_GET("NoShakeToggleKey", Player::noShakeToggleKey);
         JSON_GET("NoFogToggleKey", Player::noFogToggleKey);
+        JSON_GET("FullBrightToggleKey", Player::fullBrightToggleKey);
+        JSON_GET("FullBrightRange", Player::fullBrightRange);
+        JSON_GET("FullBrightIntensity", Player::fullBrightIntensity);
+        JSON_GET("FullBrightAngle", Player::fullBrightAngle);
+        JSON_GET("FullBrightColor", Player::fullBrightColor);
         JSON_GET("GiveHealthKey", Player::giveHealthKey);
         JSON_GET("GiveDisinKey", Player::giveDisinKey);
         JSON_GET("GiveAmmoKey", Player::giveAmmoKey);

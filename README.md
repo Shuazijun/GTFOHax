@@ -5,12 +5,12 @@
 
 2. Clone this repo with submodules:
    ```bash
-   git clone --recurse-submodules -j8 https://github.com/mankool0/GTFOHax.git
+   git clone --recurse-submodules -j8 https://github.com/Shuazijun/GTFOHax.git
    ```
 
    If you have errors due to repo size, clone with depth 1:
    ```bash
-   git clone --depth=1 --recurse-submodules -j8 https://github.com/mankool0/GTFOHax.git
+   git clone --depth=1 --recurse-submodules -j8 https://github.com/Shuazijun/GTFOHax.git
    ```
 
 ## Build With CMake (Linux/MinGW)
